@@ -1,0 +1,16 @@
+Package: Takuzu
+Title: Jeux Application Takuzu 
+Version: 0.0.0.9000
+Type: Package
+Authors@R: 
+    person("ousmane mama", "DIALLO", , "ousmanemamadiallo@gmail.com.com", role = c("aut", "cre"))
+Description: Une application Shiny pour jouer au Takuzu.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+LazyData: true
+Imports: 
+    shiny,
+    shinyjs
+
