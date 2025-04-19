@@ -187,11 +187,3 @@ server <- function(input, output, session) {
     output$message <- renderText(message)
   })
 }
-
-# Fonction pour démarrer l'application
-run_app <- function() {
-  shinyApp(ui = ui, server = server)
-}
-
-# Démarrer l'application
-run_app()

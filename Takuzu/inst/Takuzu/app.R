@@ -156,5 +156,3 @@ run_app <- function() {
   shinyApp(ui = ui, server = server)
 }
 
-# Démarrer l'application
-run_app()

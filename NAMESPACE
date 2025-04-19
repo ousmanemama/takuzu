@@ -1,5 +1,6 @@
 export(server)
 export(matrice_vide)
+export(run_Takuzubeta)
 import(shiny)
 import(shinyjs)
 export(run_app)
