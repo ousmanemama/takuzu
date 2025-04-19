@@ -1,8 +1,9 @@
-library(shiny)
-library(shinyjs)
+# Chargement des bibliothèques nécessaires
+library(shiny)     #
+library(shinyjs) 
 
-# Taille de la matrice
-taille_matrice <- 6
+# Définir la taille de la grille Takuzu
+taille_matrice <- 6  
 
 # Vérifie si une ligne est valide (pas plus de 3 de chaque, pas 3 consécutifs)
 ligne_valide_simple <- function(ligne) {
@@ -13,16 +14,17 @@ ligne_valide_simple <- function(ligne) {
   return(TRUE)
 }
 
-# Version stricte : applique sur lignes/colonnes déjà en caractères
+# Fonction de validation stricte (utilisée sur les lignes/colonnes)
 ligne_valide_stricte <- function(vec) {
   sum(vec == "0") == 3 &&
     sum(vec == "1") == 3 &&
-    !any(rle(vec)$lengths >= 3)
+    !any(rle(vec)$lengths >= 3)  # pas 3 chiffres consécutifs
 }
 
-# Génère une grille complète strictement valide
+# Génère une grille complète et valide selon les règles Takuzu
 generer_grille_complete_logique <- function(max_essais = 1000) {
   essais <- 0
+
   repeat {
     essais <- essais + 1
     grille <- matrix(NA, nrow = taille_matrice, ncol = taille_matrice)
@@ -31,8 +33,10 @@ generer_grille_complete_logique <- function(max_essais = 1000) {
     for (i in 1:taille_matrice) {
       valide <- FALSE
       tentatives <- 0
+
+      # Génération d'une ligne valide unique
       while (!valide && tentatives < 1000) {
-        ligne <- sample(rep(0:1, 3))
+        ligne <- sample(rep(0:1, 3))  # 3 zéros, 3 uns
         if (!ligne_valide_simple(ligne)) { tentatives <- tentatives + 1; next }
         if (any(sapply(lignes_existantes, function(l) all(l == ligne)))) {
           tentatives <- tentatives + 1; next
@@ -43,6 +47,7 @@ generer_grille_complete_logique <- function(max_essais = 1000) {
       }
     }
 
+    # Vérification globale de la grille
     grille_chr <- apply(grille, c(1, 2), as.character)
     lignes <- apply(grille_chr, 1, paste, collapse = "")
     colonnes <- apply(grille_chr, 2, paste, collapse = "")
@@ -53,7 +58,7 @@ generer_grille_complete_logique <- function(max_essais = 1000) {
       length(unique(lignes)) == taille_matrice &&
       length(unique(colonnes)) == taille_matrice
     ) {
-      return(grille_chr)
+      return(grille_chr)  # Grille valide
     }
 
     if (essais >= max_essais) {
@@ -62,7 +67,7 @@ generer_grille_complete_logique <- function(max_essais = 1000) {
   }
 }
 
-# Grille avec des cases vides selon le niveau
+# Crée une grille partiellement remplie en masquant des cases selon le niveau choisi
 grille_initiale <- function(niveau) {
   sol <- generer_grille_complete_logique()
   nb_cases <- taille_matrice^2
@@ -72,7 +77,7 @@ grille_initiale <- function(niveau) {
   return(list(grille = grille, solution = sol))
 }
 
-# Interface utilisateur
+# Interface utilisateur 
 ui <- fluidPage(
   tags$style(HTML(".sidebar { max-height: 100vh; overflow-y: auto; }")),
   useShinyjs(),
@@ -93,12 +98,13 @@ ui <- fluidPage(
   )
 )
 
-# Logique serveur
+# Logique serveur 
 server <- function(input, output, session) {
   solution_complete <- reactiveVal()
   matrice <- reactiveVal()
   chronometre <- reactiveVal(Sys.time())
 
+  # Texte explicatif initial
   tips <- "Règles : 
   \n- chaque case doit être remplie avec un 0 ou un 1.
   \n- chaque ligne et chaque colonne doivent contenir autant de 0 que de 1.
@@ -107,17 +113,16 @@ server <- function(input, output, session) {
 
   output$message <- renderText(tips)
 
+  # Démarrage (pas de message d'erreur visible)
   observeEvent(TRUE, {
     tryCatch({
       niveaux <- grille_initiale("Moyen")
       matrice(niveaux$grille)
       solution_complete(niveaux$solution)
-    }, error = function(e) {
-      showNotification("⛔ Erreur : impossible de générer une grille valide.", type = "error")
-      output$message <- renderText("Erreur de génération initiale.")
-    })
+    }, error = function(e) {})
   }, once = TRUE)
 
+  # Réinitialisation du jeu 
   observeEvent(input$reset, {
     tryCatch({
       niveaux <- grille_initiale(input$niveau)
@@ -125,21 +130,21 @@ server <- function(input, output, session) {
       solution_complete(niveaux$solution)
       chronometre(Sys.time())
       output$message <- renderText(tips)
-    }, error = function(e) {
-      showNotification("⛔ Erreur : génération échouée.", type = "error")
-      output$message <- renderText("Erreur lors de la génération.")
-    })
+    }, error = function(e) {})
   })
 
+  # Bouton : révéler la solution
   observeEvent(input$reveler, {
     matrice(solution_complete())
   })
 
+  # Affichage du chrono en direct
   output$timer <- renderText({
     invalidateLater(1000, session)
     paste0(as.integer(difftime(Sys.time(), chronometre(), units = "secs")), " sec")
   })
 
+  # Génération dynamique de la grille interactive
   output$matrice <- renderUI({
     grille <- matrice()
     lapply(1:taille_matrice, function(i) {
@@ -156,6 +161,7 @@ server <- function(input, output, session) {
     })
   })
 
+  # Gestion des clics sur les cellules
   observeEvent(input$cell_click, {
     i <- input$cell_click$i
     j <- input$cell_click$j
@@ -164,11 +170,13 @@ server <- function(input, output, session) {
     matrice(grille)
   })
 
+  # Vérification de la grille proposée par l'utilisateur
   observeEvent(input$check, {
     grille <- matrice()
     valid <- TRUE
     message <- ""
 
+    # Vérifie l'équilibre des lignes/colonnes
     for (i in 1:taille_matrice) {
       if (sum(grille[i, ] == "0") != 3 || sum(grille[i, ] == "1") != 3 ||
           sum(grille[, i] == "0") != 3 || sum(grille[, i] == "1") != 3) {
@@ -176,6 +184,7 @@ server <- function(input, output, session) {
       }
     }
 
+    # Vérifie les répétitions interdites
     if (valid) {
       for (i in 1:taille_matrice) {
         for (j in 1:(taille_matrice - 2)) {
@@ -189,11 +198,12 @@ server <- function(input, output, session) {
       }
     }
 
+    # Vérifie les duplications
     if (valid) {
       lignes <- apply(grille, 1, paste, collapse = "")
       colonnes <- apply(grille, 2, paste, collapse = "")
       if (any(duplicated(lignes)) || any(duplicated(colonnes))) {
-        valid <- FALSE; message <- "Lignes ou colonnes dupliquées."
+        valid <- FALSE; message <- "❌ Lignes ou colonnes dupliquées."
       }
     }
 
@@ -201,4 +211,3 @@ server <- function(input, output, session) {
     output$message <- renderText(message)
   })
 }
-

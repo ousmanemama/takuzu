@@ -27,13 +27,6 @@ devtools::install_github("ousmanemama/Takuzu")
 library(Takuzu)
 # Lancer l'application Shiny
 run_app()
-```
-## Pour tester Takuzubeta
-```r
-# Installation depuis GitHub
-devtools::install_github("ousmanemama/Takuzubeta") 
-# Utilisation Rapide
-library(Takuzubeta)
-# Lancer l'application Shiny
-run_app()
+# Pour tester Takuzubeta
+run_Takuzubeta()
 ```
