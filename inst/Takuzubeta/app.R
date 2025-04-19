@@ -16,37 +16,42 @@ ligne_valide_simple <- function(ligne) {
 
 # Générateur de grille Takuzu complète
 
-generer_grille_complete_logique <- function() {
-  grille <- matrix(NA, nrow = taille_matrice, ncol = taille_matrice)
-  lignes_existantes <- list()
-  for (i in 1:taille_matrice) {
-    valide <- FALSE
-    essais <- 0
-    while (!valide && essais < 1000) {
-      ligne <- sample(rep(0:1, 3))
-      if (!ligne_valide_simple(ligne)) { essais <- essais + 1; next }
-      if (any(sapply(lignes_existantes, function(l) all(l == ligne)))) {
-        essais <- essais + 1; next
+generer_grille_complete_logique <- function(max_essais = 500) {
+  essais <- 0
+
+  repeat {
+    essais <- essais + 1
+
+    grille <- matrix(NA, nrow = taille_matrice, ncol = taille_matrice)
+    lignes_existantes <- list()
+
+    for (i in 1:taille_matrice) {
+      valide <- FALSE
+      tentatives <- 0
+      while (!valide && tentatives < 1000) {
+        ligne <- sample(rep(0:1, 3))
+        if (!ligne_valide_simple(ligne)) { tentatives <- tentatives + 1; next }
+        if (any(sapply(lignes_existantes, function(l) all(l == ligne)))) {
+          tentatives <- tentatives + 1; next
+        }
+        grille[i, ] <- ligne
+        lignes_existantes[[length(lignes_existantes)+1]] <- ligne
+        valide <- TRUE
       }
-      grille[i, ] <- ligne
-      lignes_existantes[[length(lignes_existantes)+1]] <- ligne
-      valide <- TRUE
+    }
+
+    colonnes <- apply(grille, 2, paste, collapse = "")
+    if (!any(duplicated(colonnes))) {
+      return(apply(grille, c(1, 2), as.character))  # grille valide, on sort
+    }
+
+    # protection contre boucle infinie
+    if (essais >= max_essais) {
+      stop("Impossible de générer une grille valide après ", max_essais, " essais.")
     }
   }
-  for (j in 1:taille_matrice) {
-    col <- grille[, j]
-    if (!ligne_valide_simple(col) || sum(col == 0) != 3 ||
-        any(duplicated(apply(grille[, j, drop=FALSE], 2, paste, collapse="")))) {
-      return(generer_grille_complete_logique())
-    }
-  }
-# Vérifier que toutes les colonnes sont uniques
-  colonnes <- apply(grille, 2, paste, collapse = "")
-  if (any(duplicated(colonnes))) {
-    return(generer_grille_complete_logique())
-  }
-  return(apply(grille, c(1,2), as.character))
 }
+
 
 
 # Génération d'une grille partiellement remplie selon le niveau
@@ -66,7 +71,7 @@ grille_initiale <- function(niveau) {
 ui <- fluidPage(
   tags$style(HTML(".sidebar { max-height: 100vh; overflow-y: auto; }")),
   useShinyjs(),
-  titlePanel(" Jeu de Takuzu (6x6) — Logique Naturelle"),
+  titlePanel(" Jeu de Takuzu "),
   sidebarLayout(
     sidebarPanel(id = "sidebar-buttons",
                  selectInput("niveau", "Niveau de difficulté :", c("Facile", "Moyen", "Difficile"), "Moyen"),
@@ -91,39 +96,51 @@ server <- function(input, output, session) {
   solution_complete <- reactiveVal()
   matrice <- reactiveVal()
   chronometre <- reactiveVal(Sys.time())
-  
+
+  # Message d'instructions
   tips <- "Règles : 
-  \n- chaque case de la grille doit être remplie avec un 0 ou un 1.\n- chaque ligne et chaque colonne doivent contenir autant de 0 que de 1.\n- il est interdit d’avoir trois 0 ou trois 1 consécutifs dans une ligne ou une colonne.\n-deux lignes ou deux colonnes identiques sont interdites dans la même grille."
+  \n- chaque case de la grille doit être remplie avec un 0 ou un 1.\n- chaque ligne et chaque colonne doivent contenir autant de 0 que de 1.\n- il est interdit d’avoir trois 0 ou trois 1 consécutifs dans une ligne ou une colonne.\n- deux lignes ou deux colonnes identiques sont interdites dans la même grille."
+
   output$message <- renderText(tips)
-  
-# Initialisation
+
+  # Initialisation au chargement de l'application
   observeEvent(TRUE, {
-    niveaux <- grille_initiale("Moyen")
-    matrice(niveaux$grille)
-    solution_complete(niveaux$solution)
+    tryCatch({
+      niveaux <- grille_initiale("Moyen")
+      matrice(niveaux$grille)
+      solution_complete(niveaux$solution)
+    }, error = function(e) {
+      showNotification("⛔ Erreur : impossible de générer une grille valide au démarrage.", type = "error")
+      output$message <- renderText("Erreur lors de la génération initiale.")
+    })
   }, once = TRUE)
-  
-# Réinitialisation
+
+  # Réinitialisation via le bouton
   observeEvent(input$reset, {
-    niveaux <- grille_initiale(input$niveau)
-    matrice(niveaux$grille)
-    solution_complete(niveaux$solution)
-    chronometre(Sys.time())
-    output$message <- renderText(tips)
+    tryCatch({
+      niveaux <- grille_initiale(input$niveau)
+      matrice(niveaux$grille)
+      solution_complete(niveaux$solution)
+      chronometre(Sys.time())
+      output$message <- renderText(tips)
+    }, error = function(e) {
+      showNotification("⛔ Erreur : impossible de générer une nouvelle grille.", type = "error")
+      output$message <- renderText("Erreur lors de la génération. Veuillez réessayer.")
+    })
   })
-  
-# Afficher la solution
+
+  # Bouton "Afficher la solution"
   observeEvent(input$reveler, {
     matrice(solution_complete())
   })
-  
-# Chronomètre
+
+  # Chronomètre
   output$timer <- renderText({
     invalidateLater(1000, session)
     paste0(as.integer(difftime(Sys.time(), chronometre(), units = "secs")), " sec")
   })
-  
-# Interface interactive
+
+  # Affichage dynamique de la grille
   output$matrice <- renderUI({
     grille <- matrice()
     lapply(1:taille_matrice, function(i) {
@@ -139,8 +156,8 @@ server <- function(input, output, session) {
       )
     })
   })
-  
-# Gestion des clics
+
+  # Gestion des clics
   observeEvent(input$cell_click, {
     i <- input$cell_click$i
     j <- input$cell_click$j
@@ -148,20 +165,20 @@ server <- function(input, output, session) {
     grille[i, j] <- ifelse(grille[i, j] == "", "0", ifelse(grille[i, j] == "0", "1", ""))
     matrice(grille)
   })
-  
-# Vérification
+
+  # Vérification de la solution
   observeEvent(input$check, {
     grille <- matrice()
     valid <- TRUE
     message <- ""
-    
+
     for (i in 1:taille_matrice) {
       if (sum(grille[i, ] == "0") != 3 || sum(grille[i, ] == "1") != 3 ||
           sum(grille[, i] == "0") != 3 || sum(grille[, i] == "1") != 3) {
         valid <- FALSE; message <- "Déséquilibre ligne ou colonne."; break
       }
     }
-    
+
     if (valid) {
       for (i in 1:taille_matrice) {
         for (j in 1:(taille_matrice - 2)) {
@@ -174,7 +191,7 @@ server <- function(input, output, session) {
         }
       }
     }
-    
+
     if (valid) {
       lignes <- apply(grille, 1, paste, collapse="")
       colonnes <- apply(grille, 2, paste, collapse="")
@@ -182,7 +199,7 @@ server <- function(input, output, session) {
         valid <- FALSE; message <- "Lignes ou colonnes dupliquées."
       }
     }
-    
+
     if (valid) message <- "✅ Bravo ! Grille correcte."
     output$message <- renderText(message)
   })
