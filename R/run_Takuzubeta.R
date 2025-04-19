@@ -11,3 +11,4 @@ run_Takuzubeta <- function() {
 
   shiny::shinyApp(ui = ui, server = server)
 }
+ 
